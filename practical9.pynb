@@ -1,0 +1,59 @@
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import StandardScaler
+from flask import Flask, request, jsonify
+
+# Load dataset (using UCI Heart dataset)
+def load_data():
+    url = "https://raw.githubusercontent.com/ansh941/Machine-Learning-Practice/master/heart.csv"
+    df = pd.read_csv(url)
+    return df
+
+# Train model
+def train_model():
+    df = load_data()
+    X = df.drop("target", axis=1)
+    y = df["target"]
+    
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+    
+    X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
+    
+    model = RandomForestClassifier(n_estimators=100, random_state=42)
+    model.fit(X_train, y_train)
+    
+    return model, scaler
+
+# Initialize Flask app
+app = Flask(__name__)
+model, scaler = train_model()
+
+@app.route("/")
+def home():
+    return "🔬 Bioscan Network API for Heart Disease Prediction"
+
+# Prediction API
+@app.route("/predict", methods=["POST"])
+def predict():
+    data = request.json
+    
+    # Expected 13 features
+    features = [
+        "age", "sex", "cp", "trestbps", "chol", "fbs", 
+        "restecg", "thalach", "exang", "oldpeak", "slope", "ca", "thal"
+    ]
+    
+    try:
+        input_data = [data[feature] for feature in features]
+        scaled_input = scaler.transform([input_data])
+        prediction = model.predict(scaled_input)[0]
+        return jsonify({"prediction": int(prediction), "status": "Success"})
+    
+    except KeyError as e:
+        return jsonify({"error": f"Missing feature: {str(e)}", "status": "Failed"})
+
+# Run app
+if __name__ == "__main__":
+    app.run(debug=True)
